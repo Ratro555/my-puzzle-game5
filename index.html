@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jigsaw Gen - Custom Puzzle Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            touch-action: none; /* Prevent scrolling while dragging on mobile */
+            overscroll-behavior: none;
+            user-select: none;
+        }
+        canvas {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background-color: #e5e7eb;
+            border-radius: 0.5rem;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans text-slate-800 overflow-hidden">
+
+    <!-- Header / Controls -->
+    <header class="bg-white border-b border-gray-200 p-4 shadow-sm z-10">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <h1 class="text-2xl font-bold text-indigo-600 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 15.424a1 1 0 0 0-1.025.989c.004 2.032-1.521 2.373-2.329 2.502a1.002 1.002 0 0 1-1.007-.638c-.378-.962-1.397-1.306-2.079-1.275a1 1 0 0 0-.895.632c-.374.966-1.397 1.298-2.078 1.267a1.001 1.001 0 0 1-1.007-.639c-.381-.968-1.401-1.304-2.081-1.271a1 1 0 0 0 .097-1.996c1.353-.065 2.164.717 2.404 1.332.25-.623 1.072-1.393 2.416-1.332 1.364-.062 2.175.727 2.416 1.343.25-.623 1.07-1.394 2.414-1.332 1.439.066 3.125.688 3.121 4.145H4.143c-.004-3.565 1.777-4.148 3.256-4.145a1 1 0 0 0 .097 1.996c-.68.033-1.7.303-2.081 1.271a1.001 1.001 0 0 1-1.007.639c-.681.031-1.704-.301-2.078-1.267a1 1 0 0 0-.895-.632c-.682-.031-1.701.313-2.079 1.275a1.002 1.002 0 0 1-1.007.638c-.808-.129-2.333-.47-2.329-2.502a1 1 0 0 0-1.025-.989H19.439z"/></svg>
+                Jigsaw Gen
+            </h1>
+            
+            <div class="flex items-center gap-3">
+                <!-- Hidden File Input -->
+                <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                
+                <button onclick="document.getElementById('imageUpload').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    1. Upload Photo
+                </button>
+
+                <select id="difficulty" class="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                    <option value="12">Easy (12 pcs)</option>
+                    <option value="24" selected>Medium (24 pcs)</option>
+                    <option value="48">Hard (48 pcs)</option>
+                    <option value="96">Expert (96 pcs)</option>
+                </select>
+
+                <button id="startBtn" disabled class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    2. Create Puzzle
+                </button>
+                
+                <button id="previewBtn" class="hidden text-gray-500 hover:text-indigo-600">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Canvas Area -->
+    <main class="flex-1 relative overflow-hidden flex items-center justify-center p-4">
+        <div id="welcomeMessage" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="bg-white/90 backdrop-blur text-center p-8 rounded-2xl shadow-xl max-w-md border border-gray-100">
+                <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800 mb-2">Ready to Play?</h2>
+                <p class="text-gray-500">Upload an image to start. The pieces snap together like magic!</p>
+            </div>
+        </div>
+        
+        <!-- Puzzle Canvas -->
+        <canvas id="puzzleCanvas" class="max-w-full max-h-full"></canvas>
+
+        <!-- Preview Modal -->
+        <div id="previewModal" class="hidden absolute top-4 right-4 w-48 bg-white p-2 rounded shadow-lg border border-gray-200 z-20">
+            <p class="text-xs font-bold text-gray-400 mb-1 uppercase">Reference</p>
+            <img id="previewImg" src="" class="w-full rounded">
+        </div>
+    </main>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="hidden absolute inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center transform transition-all scale-100 animate-bounce-in">
+            <h2 class="text-3xl font-bold text-emerald-500 mb-2">Puzzle Solved!</h2>
+            <p class="text-gray-600 mb-6">Great job putting it all together.</p>
+            <button onclick="location.reload()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('puzzleCanvas');
+    const ctx = canvas.getContext('2d');
+    const fileInput = document.getElementById('imageUpload');
+    const startBtn = document.getElementById('startBtn');
+    const difficultySelect = document.getElementById('difficulty');
+    const welcomeMsg = document.getElementById('welcomeMessage');
+    const previewBtn = document.getElementById('previewBtn');
+    const previewModal = document.getElementById('previewModal');
+    const previewImg = document.getElementById('previewImg');
+    const successModal = document.getElementById('successModal');
+
+    let pieces = [];
+    let puzzleWidth, puzzleHeight;
+    let pieceWidth, pieceHeight;
+    let rows, cols;
+    let img = new Image();
+    let selectedPiece = null;
+    let offsetX, offsetY;
+    let isSolved = false;
+    const SNAP_DISTANCE = 45; 
+
+    // Zoom and Pan State
+    let currentZoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+    let lastPanX = 0;
+    let lastPanY = 0;
+
+    // 1. Handle Image Upload
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            img = new Image();
+            img.onload = () => {
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-50');
+                startBtn.innerHTML = `2. Split into ${difficultySelect.value} Pieces`;
+                previewImg.src = img.src;
+                welcomeMsg.style.display = 'none';
+                
+                resizeCanvasToImage();
+                // Reset zoom/pan on new image
+                currentZoom = 1;
+                panX = 0;
+                panY = 0;
+                
+                // Initial draw without drawing pieces (just image)
+                ctx.save();
+                ctx.translate(panX, panY);
+                ctx.scale(currentZoom, currentZoom);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = '#000';
+                ctx.font = '20px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText("Image Loaded. Click 'Create Puzzle'", canvas.width/2, canvas.height/2);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    difficultySelect.addEventListener('change', () => {
+        if(!startBtn.disabled) {
+            startBtn.innerHTML = `2. Split into ${difficultySelect.value} Pieces`;
+        }
+    });
+
+    startBtn.addEventListener('click', initPuzzle);
+    previewBtn.addEventListener('click', () => {
+        previewModal.classList.toggle('hidden');
+    });
+
+    // 2. Initialize Puzzle
+    function initPuzzle() {
+        if (!img.src) return;
+        
+        resizeCanvasToImage();
+        
+        // Reset View
+        currentZoom = 1;
+        panX = 0;
+        panY = 0;
+
+        const totalPieces = parseInt(difficultySelect.value);
+        
+        const ratio = img.width / img.height;
+        cols = Math.round(Math.sqrt(totalPieces * ratio));
+        rows = Math.round(totalPieces / cols);
+        
+        pieceWidth = canvas.width / cols;
+        pieceHeight = canvas.height / rows;
+
+        createPieces();
+        scramblePieces();
+        draw();
+        
+        previewBtn.classList.remove('hidden');
+        isSolved = false;
+    }
+
+    function resizeCanvasToImage() {
+        const margin = 40;
+        const maxWidth = window.innerWidth - margin;
+        const maxHeight = window.innerHeight - 150; 
+
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxWidth || h > maxHeight) {
+            const ratio = Math.min(maxWidth / w, maxHeight / h);
+            w *= ratio;
+            h *= ratio;
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        puzzleWidth = canvas.width;
+        puzzleHeight = canvas.height;
+    }
+
+    // 3. Piece Generation Logic
+    function createPieces() {
+        pieces = [];
+        for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < cols; j++) {
+                const piece = {
+                    r: i,
+                    c: j,
+                    x: j * pieceWidth, 
+                    y: i * pieceHeight,
+                    currentX: 0,
+                    currentY: 0,
+                    correctX: j * pieceWidth,
+                    correctY: i * pieceHeight,
+                    solved: false,
+                    shape: getPieceShape(i, j)
+                };
+                pieces.push(piece);
+            }
+        }
+    }
+
+    function getPieceShape(row, col) {
+        let shape = { top: 0, right: 0, bottom: 0, left: 0 };
+        if (row > 0) {
+            const topNeighbor = pieces.find(p => p.r === row - 1 && p.c === col);
+            shape.top = -topNeighbor.shape.bottom;
+        }
+        if (row < rows - 1) shape.bottom = Math.random() > 0.5 ? 1 : -1;
+        if (col > 0) {
+            const leftNeighbor = pieces.find(p => p.r === row && p.c === col - 1);
+            shape.left = -leftNeighbor.shape.right;
+        }
+        if (col < cols - 1) shape.right = Math.random() > 0.5 ? 1 : -1;
+        return shape;
+    }
+
+    function scramblePieces() {
+        pieces.forEach(p => {
+            p.currentX = Math.random() * (canvas.width - pieceWidth);
+            p.currentY = Math.random() * (canvas.height - pieceHeight);
+        });
+    }
+
+    // 4. Drawing Logic
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(panX, panY);
+        ctx.scale(currentZoom, currentZoom);
+
+        // Draw Guide Outline
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, puzzleWidth, puzzleHeight);
+        
+        const solvedPieces = pieces.filter(p => p.solved);
+        const unsolvedPieces = pieces.filter(p => !p.solved && p !== selectedPiece);
+        
+        solvedPieces.forEach(p => drawPiece(p));
+        unsolvedPieces.forEach(p => drawPiece(p));
+        
+        if (selectedPiece) {
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+            drawPiece(selectedPiece);
+            ctx.shadowColor = "transparent";
+        }
+
+        ctx.restore();
+    }
+
+    function drawPiece(p) {
+        ctx.save();
+        ctx.translate(p.currentX, p.currentY);
+        
+        const path = new Path2D();
+        const w = pieceWidth;
+        const h = pieceHeight;
+        
+        let startX = 0;
+        let startY = 0;
+
+        path.moveTo(startX, startY);
+
+        if (p.shape.top !== 0) drawTab(path, startX, startY, w, -p.shape.top, false);
+        else path.lineTo(startX + w, startY);
+
+        if (p.shape.right !== 0) drawTab(path, startX + w, startY, h, p.shape.right, true);
+        else path.lineTo(startX + w, startY + h);
+
+        if (p.shape.bottom !== 0) drawTab(path, startX + w, startY + h, w, p.shape.bottom, false, true);
+        else path.lineTo(startX, startY + h);
+
+        if (p.shape.left !== 0) drawTab(path, startX, startY + h, h, -p.shape.left, true, true);
+        else path.lineTo(startX, startY);
+
+        ctx.closePath();
+        ctx.clip(path);
+        
+        ctx.drawImage(
+            img, 
+            0, 0, img.width, img.height,
+            -p.correctX, -p.correctY, canvas.width, canvas.height
+        );
+
+        if (!p.solved) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke(path);
+        } else {
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke(path);
+        }
+        
+        ctx.restore();
+    }
+
+    function drawTab(path, x, y, len, type, vertical, reverse) {
+        const sz = len; 
+        const neck = sz * 0.35;
+        const tabHeight = sz * 0.25 * (type); 
+        const tabWidth = sz * 0.3;
+
+        if (!vertical) {
+            if(!reverse) {
+                const x1 = x + (sz - neck)/2;
+                const x2 = x + (sz + neck)/2;
+                path.lineTo(x1, y);
+                path.bezierCurveTo(x1, y + tabHeight*1.5, x2, y + tabHeight*1.5, x2, y);
+                path.lineTo(x + sz, y);
+            } else {
+                const x1 = x - (sz - neck)/2;
+                const x2 = x - (sz + neck)/2;
+                path.lineTo(x1, y);
+                path.bezierCurveTo(x1, y + tabHeight*1.5, x2, y + tabHeight*1.5, x2, y);
+                path.lineTo(x - sz, y);
+            }
+        } else {
+            if (!reverse) {
+                const y1 = y + (sz - neck)/2;
+                const y2 = y + (sz + neck)/2;
+                path.lineTo(x, y1);
+                path.bezierCurveTo(x + tabHeight*1.5, y1, x + tabHeight*1.5, y2, x, y2);
+                path.lineTo(x, y + sz);
+            } else {
+                const y1 = y - (sz - neck)/2;
+                const y2 = y - (sz + neck)/2;
+                path.lineTo(x, y1);
+                path.bezierCurveTo(x + tabHeight*1.5, y1, x + tabHeight*1.5, y2, x, y2);
+                path.lineTo(x, y - sz);
+            }
+        }
+    }
+
+    // 5. Interaction Logic with Zoom Support
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        const clientX = evt.clientX || (evt.touches && evt.touches[0] ? evt.touches[0].clientX : 0);
+        const clientY = evt.clientY || (evt.touches && evt.touches[0] ? evt.touches[0].clientY : 0);
+        
+        const rawX = (clientX - rect.left) * scaleX;
+        const rawY = (clientY - rect.top) * scaleY;
+
+        return {
+            x: (rawX - panX) / currentZoom,
+            y: (rawY - panY) / currentZoom,
+            rawX: rawX,
+            rawY: rawY
+        };
+    }
+
+    function onDown(e) {
+        if(pieces.length === 0 || isSolved) return;
+        
+        const pos = getMousePos(e);
+        let hit = false;
+
+        for (let i = pieces.length - 1; i >= 0; i--) {
+            const p = pieces[i];
+            if (p.solved) continue; 
+
+            if (pos.x > p.currentX && pos.x < p.currentX + pieceWidth &&
+                pos.y > p.currentY && pos.y < p.currentY + pieceHeight) {
+                
+                selectedPiece = p;
+                offsetX = pos.x - p.currentX;
+                offsetY = pos.y - p.currentY;
+                
+                pieces.splice(i, 1);
+                pieces.push(selectedPiece);
+                
+                hit = true;
+                draw();
+                break;
+            }
+        }
+        
+        if(hit) {
+            e.preventDefault();
+        } else {
+            isPanning = true;
+            startPanX = pos.rawX;
+            startPanY = pos.rawY;
+            lastPanX = panX;
+            lastPanY = panY;
+            e.preventDefault();
+            canvas.style.cursor = 'move';
+        }
+    }
+
+    function onMove(e) {
+        e.preventDefault();
+        const pos = getMousePos(e);
+
+        if (selectedPiece) {
+            selectedPiece.currentX = pos.x - offsetX;
+            selectedPiece.currentY = pos.y - offsetY;
+            draw();
+        } else if (isPanning) {
+            const diffX = pos.rawX - startPanX;
+            const diffY = pos.rawY - startPanY;
+            panX = lastPanX + diffX;
+            panY = lastPanY + diffY;
+            draw();
+        }
+    }
+
+    function onUp(e) {
+        if (isPanning) {
+            isPanning = false;
+            canvas.style.cursor = 'grab';
+        }
+
+        if (!selectedPiece) return;
+        
+        const dist = Math.hypot(
+            selectedPiece.currentX - selectedPiece.correctX,
+            selectedPiece.currentY - selectedPiece.correctY
+        );
+
+        if (dist < SNAP_DISTANCE) {
+            selectedPiece.currentX = selectedPiece.correctX;
+            selectedPiece.currentY = selectedPiece.correctY;
+            selectedPiece.solved = true;
+        }
+
+        selectedPiece = null;
+        draw();
+        checkWin();
+    }
+
+    // Mouse Wheel Zoom
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const pos = getMousePos(e);
+
+        const delta = -e.deltaY;
+        const scaleMult = 1.1;
+        let newZoom = delta > 0 ? currentZoom * scaleMult : currentZoom / scaleMult;
+        
+        newZoom = Math.min(Math.max(0.1, newZoom), 5);
+        
+        panX = pos.rawX - pos.x * newZoom;
+        panY = pos.rawY - pos.y * newZoom;
+        
+        currentZoom = newZoom;
+        draw();
+    }, { passive: false });
+
+    function checkWin() {
+        const allSolved = pieces.every(p => p.solved);
+        if (allSolved) {
+            isSolved = true;
+            for(let i=0; i<50; i++) createConfetti();
+            successModal.classList.remove('hidden');
+        }
+    }
+
+    function createConfetti() {
+        const colors = ['#f43f5e', '#ec4899', '#8b5cf6', '#6366f1', '#3b82f6', '#10b981', '#f59e0b'];
+        const conf = document.createElement('div');
+        conf.classList.add('confetti');
+        conf.style.left = Math.random() * 100 + 'vw';
+        conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        conf.style.animationDuration = Math.random() * 2 + 3 + 's';
+        document.body.appendChild(conf);
+        setTimeout(() => conf.remove(), 5000);
+    }
+
+    canvas.addEventListener('mousedown', onDown);
+    canvas.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+
+    canvas.addEventListener('touchstart', onDown, {passive: false});
+    canvas.addEventListener('touchmove', onMove, {passive: false});
+    window.addEventListener('touchend', onUp);
+
+    window.addEventListener('resize', () => {
+        if(img.src) {
+           // We keep canvas content scale intact
+        }
+    });
+
+</script>
+</body>
+</html>
